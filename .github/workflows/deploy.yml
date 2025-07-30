@@ -2,44 +2,40 @@ name: Deploy to Google Cloud Run
 
 on:
   push:
-    branches:
-      - main
+    branches: [main]
 
 jobs:
   deploy:
-    name: Deploy to Cloud Run
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+    - name: Checkout code
+      uses: actions/checkout@v3
 
-      - name: Set up Docker
-        uses: docker/setup-buildx-action@v3
+    - name: Authenticate to Google Cloud
+      uses: google-github-actions/auth@v2
+      with:
+        credentials_json: ${{ secrets.GCP_CREDENTIALS }}
 
-      - name: Authenticate to Google Cloud
-        uses: google-github-actions/auth@v2
-        with:
-          credentials_json: '${{ secrets.GCP_CREDENTIALS }}'
+    - name: Set up gcloud CLI
+      uses: google-github-actions/setup-gcloud@v1
+      with:
+        project_id: sincere-octane-465207-j6
+        install_components: 'beta'
 
-      - name: Set up gcloud CLI
-        uses: google-github-actions/setup-gcloud@v2
-        with:
-          project_id: sincere-octane-465207-j6
-          install_components: 'beta'
+    - name: Configure Docker to use Artifact Registry
+      run: |
+        gcloud auth configure-docker asia-south1-docker.pkg.dev
 
-      - name: Configure Docker for GCR
-        run: gcloud auth configure-docker
+    - name: Build and Push Docker image to Artifact Registry
+      run: |
+        docker build -t asia-south1-docker.pkg.dev/sincere-octane-465207-j6/my-node-app-repo/my-node-app:$GITHUB_SHA .
+        docker push asia-south1-docker.pkg.dev/sincere-octane-465207-j6/my-node-app-repo/my-node-app:$GITHUB_SHA
 
-      - name: Build and Push Docker image
-        run: |
-          docker build -t gcr.io/sincere-octane-465207-j6/my-node-app:$GITHUB_SHA .
-          docker push gcr.io/sincere-octane-465207-j6/my-node-app:$GITHUB_SHA
-
-      - name: Deploy to Cloud Run
-        run: |
-          gcloud run deploy my-node-app \
-            --image gcr.io/sincere-octane-465207-j6/my-node-app:$GITHUB_SHA \
-            --platform managed \
-            --region us-central1 \
-            --allow-unauthenticated
+    - name: Deploy to Cloud Run
+      run: |
+        gcloud run deploy my-node-app \
+          --image=asia-south1-docker.pkg.dev/sincere-octane-465207-j6/my-node-app-repo/my-node-app:$GITHUB_SHA \
+          --region=asia-south1 \
+          --platform=managed \
+          --allow-unauthenticated
