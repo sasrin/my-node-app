@@ -33,9 +33,11 @@ jobs:
     - name: Push Docker image to Artifact Registry
       run: docker push $IMAGE:$GITHUB_SHA
 
-    - name: Deploy to Cloud Run
-      uses: google-github-actions/deploy-cloudrun@v2
-      with:
-        service: ${{ env.SERVICE }}
-        image: ${{ env.IMAGE }}:${{ github.sha }}
-        region: ${{ env.REGION }}
+    - name: Deploy to Cloud Run (manual command)
+      run: |
+        gcloud run deploy $SERVICE \
+          --image=$IMAGE:$GITHUB_SHA \
+          --region=$REGION \
+          --platform=managed \
+          --allow-unauthenticated \
+          --project=$PROJECT_ID
