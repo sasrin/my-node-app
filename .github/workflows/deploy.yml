@@ -1,38 +1,57 @@
-name: Deploy to Google Cloud Run
+name: Build, Push to Docker Hub & Deploy to Cloud Run
 
 on:
   push:
-    branches:
-      - main
+    branches: [ main ]
+
+env:
+  PROJECT_ID: sincere-octane-465207-j6
+  IMAGE_NAME: my-node-app
+  SERVICE: my-node-app
+  REGION: us-central1
 
 jobs:
-  deploy:
-    name: Deploy to Cloud Run
+  build-and-deploy:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout source code
-      uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-    - name: Authenticate to Google Cloud
-      uses: google-github-actions/auth@v2
-      with:
-        credentials_json: '${{ secrets.GCP_SA_KEY }}'
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
 
-    - name: Set up Docker
-      uses: docker/setup-buildx-action@v3
+      - name: Install dependencies
+        run: npm ci
 
-    - name: Configure Docker for Artifact Registry
-      run: gcloud auth configure-docker asia-south1-docker.pkg.dev --quiet
+      - name: Run tests
+        run: npm test --if-present
 
-    - name: Build and push Docker image
-      run: |
-        docker build -t asia-south1-docker.pkg.dev/sincere-octane-465207-j6/my-node-app-repo/my-node-app:$GITHUB_SHA .
-        docker push asia-south1-docker.pkg.dev/sincere-octane-465207-j6/my-node-app-repo/my-node-app:$GITHUB_SHA
+      - name: Run linting
+        run: npm run lint --if-present
 
-    - name: Deploy to Cloud Run
-      uses: google-github-actions/deploy-cloudrun@v2
-      with:
-        service: my-node-app
-        image: asia-south1-docker.pkg.dev/sincere-octane-465207-j6/my-node-app-repo/my-node-app:$GITHUB_SHA
-        region: asia-south1
+      - name: Authenticate with Google Cloud
+        run: |
+          echo "${{ github.workspace }}/.github/keyfile.json"
+          gcloud auth activate-service-account --key-file=.github/keyfile.json
+          gcloud config set project $PROJECT_ID
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: .github/keyfile.json
+
+      - name: Build and push Docker image to Artifact Registry
+        run: |
+          gcloud auth configure-docker $REGION-docker.pkg.dev --quiet
+          docker build -t $REGION-docker.pkg.dev/$PROJECT_ID/care-point-repo/$IMAGE_NAME:latest .
+          docker push $REGION-docker.pkg.dev/$PROJECT_ID/care-point-repo/$IMAGE_NAME:latest
+
+      - name: Deploy to Cloud Run
+        run: |
+          gcloud run deploy $SERVICE \
+            --image $REGION-docker.pkg.dev/$PROJECT_ID/care-point-repo/$IMAGE_NAME:latest \
+            --region $REGION \
+            --platform managed \
+            --allow-unauthenticated \
+            --set-env-vars MONGODB_URI=$MONGODB_URI
