@@ -4,16 +4,16 @@ on:
   push:
     branches: [main]
 
-env:
-  PROJECT_ID: eco-folder-438813-f0
-  REGION: us-central1
-  SERVICE: my-node-app-deployer
-  REPOSITORY: my-repo
-  IMAGE: us-central1-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPOSITORY }}/my-node-app
-
 jobs:
   deploy:
     runs-on: ubuntu-latest
+
+    env:
+      PROJECT_ID: eco-folder-438813-f0
+      REGION: us-central1
+      SERVICE: my-node-app-deployer
+      REPOSITORY: my-repo
+      IMAGE: us-central1-docker.pkg.dev/eco-folder-438813-f0/my-repo/my-node-app
 
     steps:
     - name: Checkout code
@@ -37,5 +37,5 @@ jobs:
       uses: google-github-actions/deploy-cloudrun@v2
       with:
         service: ${{ env.SERVICE }}
-        image: $IMAGE:${{ github.sha }}
+        image: ${{ env.IMAGE }}:${{ github.sha }}
         region: ${{ env.REGION }}
