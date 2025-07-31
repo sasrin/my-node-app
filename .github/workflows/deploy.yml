@@ -1,57 +1,46 @@
-name: Build, Push to Docker Hub & Deploy to Cloud Run
+name: Build, Push to Artifact Registry & Deploy to Cloud Run
 
 on:
   push:
-    branches: [ main ]
+    branches:
+      - main
 
 env:
-  PROJECT_ID: sincere-octane-465207-j6
-  IMAGE_NAME: my-node-app
-  SERVICE: my-node-app
+  PROJECT_ID: eco-folder-438813-f0
   REGION: us-central1
+  REPOSITORY: my-repo
+  SERVICE: my-node-app-deployer
+  IMAGE: us-central1-docker.pkg.dev/eco-folder-438813-f0/my-repo/my-node-app
 
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v3
 
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
+      - name: Set up Google Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
         with:
-          node-version: '20'
-          cache: 'npm'
+          project_id: ${{ env.PROJECT_ID }}
+          service_account_key: ${{ secrets.GCP_SA_KEY }}
+          export_default_credentials: true
 
-      - name: Install dependencies
-        run: npm ci
+      - name: Authenticate Docker to Artifact Registry
+        run: gcloud auth configure-docker ${{ env.REGION }}-docker.pkg.dev
 
-      - name: Run tests
-        run: npm test --if-present
+      - name: Build Docker image
+        run: docker build -t ${{ env.IMAGE }}:$GITHUB_SHA .
 
-      - name: Run linting
-        run: npm run lint --if-present
-
-      - name: Authenticate with Google Cloud
-        run: |
-          echo "${{ github.workspace }}/.github/keyfile.json"
-          gcloud auth activate-service-account --key-file=.github/keyfile.json
-          gcloud config set project $PROJECT_ID
-        env:
-          GOOGLE_APPLICATION_CREDENTIALS: .github/keyfile.json
-
-      - name: Build and push Docker image to Artifact Registry
-        run: |
-          gcloud auth configure-docker $REGION-docker.pkg.dev --quiet
-          docker build -t $REGION-docker.pkg.dev/$PROJECT_ID/care-point-repo/$IMAGE_NAME:latest .
-          docker push $REGION-docker.pkg.dev/$PROJECT_ID/care-point-repo/$IMAGE_NAME:latest
+      - name: Push Docker image to Artifact Registry
+        run: docker push ${{ env.IMAGE }}:$GITHUB_SHA
 
       - name: Deploy to Cloud Run
         run: |
-          gcloud run deploy $SERVICE \
-            --image $REGION-docker.pkg.dev/$PROJECT_ID/care-point-repo/$IMAGE_NAME:latest \
-            --region $REGION \
-            --platform managed \
+          gcloud run deploy ${{ env.SERVICE }} \
+            --image=${{ env.IMAGE }}:$GITHUB_SHA \
+            --region=${{ env.REGION }} \
+            --platform=managed \
             --allow-unauthenticated \
-            --set-env-vars MONGODB_URI=$MONGODB_URI
+            --project=${{ env.PROJECT_ID }}
