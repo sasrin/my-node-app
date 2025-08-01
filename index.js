@@ -4,7 +4,7 @@ const client = require('prom-client');
 const app = express();
 const register = new client.Registry();
 
-// Default system metrics சேகரிக்கிறது (CPU, memory, etc.)
+// Collect default system metrics (CPU, memory, etc.)
 client.collectDefaultMetrics({ register });
 
 // Root route
