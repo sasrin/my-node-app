@@ -18,7 +18,8 @@ app.get('/metrics', async (req, res) => {
   res.end(await register.metrics());
 });
 
-const PORT = process.env.PORT || 3000;
+// Use port 8080 for Cloud Run
+const PORT = process.env.PORT || 8080;
 app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
 });
